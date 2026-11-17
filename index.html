@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stock Take Scanner</title>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
     --bg: #0f1115;
@@ -428,6 +428,10 @@
   function startScanning() {
     if (!state.scriptUrl) {
       openSettings();
+      return;
+    }
+    if (typeof Html5Qrcode === "undefined") {
+      toast("Scanner library failed to load — check your connection and reload the page.");
       return;
     }
     els.scanOverlay.style.display = "none";
