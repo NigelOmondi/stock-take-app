@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Barcode</title>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+  body { background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; font-family: sans-serif; gap: 24px; }
+  svg { max-width: 92vw; }
+  p { color: #333; text-align: center; max-width: 320px; }
+</style>
+</head>
+<body>
+  <svg id="barcode"></svg>
+  <p>This is a real, correctly-encoded EAN-13 barcode for the "Men's Crew Socks" sample row in the Products sheet (6009880123456). Open this page on a laptop or second phone and scan it with the Stock Take Scanner app to confirm scanning works.</p>
+  <script>
+    JsBarcode("#barcode", "6009880123456", { format: "EAN13", height: 100, width: 2.5, fontSize: 18, margin: 16 });
+  </script>
+</body>
+</html>
