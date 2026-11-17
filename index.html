@@ -25,6 +25,8 @@
     background: var(--bg);
     color: var(--text);
     height: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
   body {
     display: flex;
@@ -74,9 +76,25 @@
     border: 1px solid var(--border);
     aspect-ratio: 3/4;
     max-height: 60vh;
+    max-width: 100%;
   }
-  #reader { width: 100%; height: 100%; }
-  #reader video { object-fit: cover; width: 100% !important; height: 100% !important; }
+  #reader {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  #reader video,
+  #reader canvas,
+  #reader > div {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    object-fit: cover !important;
+  }
   #scan-overlay {
     position: absolute;
     inset: 0;
@@ -289,10 +307,11 @@
     <div id="reader"></div>
     <div class="frame-hint" id="frame-hint" style="display:none"></div>
     <div id="scan-overlay">
-      <button id="start-btn">Start scanning</button>
-      <p>Point your camera at a barcode. The scan logs straight to the Stock Take sheet.</p>
+      <p>Camera is off. Tap "Start scanning" below.</p>
     </div>
   </div>
+
+  <button class="btn btn-primary" id="scan-toggle-btn" style="width:100%">Start scanning</button>
 
   <div id="result-card">
     <div class="rc-barcode" id="rc-barcode">—</div>
@@ -356,7 +375,7 @@
     staffNameInput: document.getElementById("staff-name"),
     scriptUrlInput: document.getElementById("script-url"),
     saveSettingsBtn: document.getElementById("save-settings-btn"),
-    startBtn: document.getElementById("start-btn"),
+    scanToggleBtn: document.getElementById("scan-toggle-btn"),
     scanOverlay: document.getElementById("scan-overlay"),
     resultCard: document.getElementById("result-card"),
     rcBarcode: document.getElementById("rc-barcode"),
@@ -425,6 +444,19 @@
     Html5QrcodeSupportedFormats.QR_CODE
   ];
 
+  function setScanningUI(isScanning) {
+    els.scanToggleBtn.textContent = isScanning ? "Stop scanning" : "Start scanning";
+    els.scanToggleBtn.className = isScanning ? "btn btn-secondary" : "btn btn-primary";
+  }
+
+  els.scanToggleBtn.addEventListener("click", function () {
+    if (state.scanning) {
+      stopScanning();
+    } else {
+      startScanning();
+    }
+  });
+
   function startScanning() {
     if (!state.scriptUrl) {
       openSettings();
@@ -446,12 +478,38 @@
       )
       .then(function () {
         state.scanning = true;
+        setScanningUI(true);
       })
       .catch(function (err) {
         els.scanOverlay.style.display = "flex";
         document.getElementById("frame-hint").style.display = "none";
         toast("Camera error: " + err);
       });
+  }
+
+  function stopScanning() {
+    if (!state.html5Qrcode) {
+      state.scanning = false;
+      setScanningUI(false);
+      return;
+    }
+    state.html5Qrcode
+      .stop()
+      .then(function () {
+        try { state.html5Qrcode.clear(); } catch (e) {}
+        finishStop();
+      })
+      .catch(function () {
+        finishStop();
+      });
+  }
+
+  function finishStop() {
+    state.scanning = false;
+    setScanningUI(false);
+    els.scanOverlay.style.display = "flex";
+    document.getElementById("frame-hint").style.display = "none";
+    els.resultCard.classList.remove("show");
   }
 
   function pauseScanning() {
@@ -579,8 +637,6 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-
-  els.startBtn.addEventListener("click", startScanning);
 
   refreshStaffSub();
   if (!state.scriptUrl || !state.staffName) {
