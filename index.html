@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Take Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #e8eaed;
+    --muted: #8a8f9c;
+    --accent: #3ddc97;
+    --accent-dark: #22a873;
+    --danger: #e0556f;
+    --warn: #e0a940;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    height: 100%;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+  }
+  header h1 {
+    font-size: 18px;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  header .sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  button.icon-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 20px;
+  }
+  #reader-wrap {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--border);
+    aspect-ratio: 3/4;
+    max-height: 60vh;
+  }
+  #reader { width: 100%; height: 100%; }
+  #reader video { object-fit: cover; width: 100% !important; height: 100% !important; }
+  #scan-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(0,0,0,0.55);
+    text-align: center;
+    padding: 20px;
+  }
+  #scan-overlay button {
+    background: var(--accent);
+    color: #06201452;
+    color: #07231a;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  #scan-overlay p { color: var(--muted); font-size: 13px; max-width: 240px; }
+  .frame-hint {
+    position: absolute;
+    inset: 14%;
+    border: 2px solid rgba(61,220,151,0.8);
+    border-radius: 12px;
+    pointer-events: none;
+  }
+
+  #result-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    display: none;
+  }
+  #result-card.show { display: block; }
+  .rc-barcode {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+  .rc-name {
+    font-size: 19px;
+    font-weight: 700;
+    margin: 4px 0 2px;
+  }
+  .rc-name.unknown { color: var(--warn); }
+  .rc-meta {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .qty-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 12px 0;
+  }
+  .qty-row button {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .qty-row input {
+    flex: 1;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    height: 44px;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+  }
+  #notes {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 10px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-family: inherit;
+  }
+  .action-row { display: flex; gap: 10px; }
+  .btn {
+    flex: 1;
+    padding: 13px 0;
+    border-radius: 12px;
+    border: none;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #07231a; }
+  .btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+
+  #log-section h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  .log-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .log-item .li-name { font-weight: 600; }
+  .log-item .li-barcode { color: var(--muted); font-size: 12px; }
+  .log-item .li-qty {
+    background: var(--panel-2);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .log-item.pending .li-qty { color: var(--warn); }
+  .log-item.error .li-qty { color: var(--danger); }
+
+  #toast {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    z-index: 50;
+    max-width: 90%;
+    text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .modal h2 { margin: 0 0 14px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 11px;
+    font-size: 14px;
+  }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Stock Take Scanner</h1>
+    <div class="sub" id="staff-sub">Not set up yet</div>
+  </div>
+  <button class="icon-btn" id="settings-btn" aria-label="Settings">⚙</button>
+</header>
+
+<main>
+  <div id="reader-wrap">
+    <div id="reader"></div>
+    <div class="frame-hint" id="frame-hint" style="display:none"></div>
+    <div id="scan-overlay">
+      <button id="start-btn">Start scanning</button>
+      <p>Point your camera at a barcode. The scan logs straight to the Stock Take sheet.</p>
+    </div>
+  </div>
+
+  <div id="result-card">
+    <div class="rc-barcode" id="rc-barcode">—</div>
+    <div class="rc-name" id="rc-name">—</div>
+    <div class="rc-meta" id="rc-meta"></div>
+    <div class="qty-row">
+      <button id="qty-minus" type="button">−</button>
+      <input id="qty-input" type="number" inputmode="numeric" value="1" min="0">
+      <button id="qty-plus" type="button">+</button>
+    </div>
+    <textarea id="notes" rows="2" placeholder="Notes (optional) — e.g. damaged, wrong shelf"></textarea>
+    <div class="action-row">
+      <button class="btn btn-secondary" id="rescan-btn">Rescan</button>
+      <button class="btn btn-primary" id="log-btn">Log it</button>
+    </div>
+  </div>
+
+  <div id="log-section">
+    <h2>Recent scans this session</h2>
+    <div id="log-list"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<div class="modal-backdrop" id="settings-modal">
+  <div class="modal">
+    <h2>Set up this device</h2>
+    <div class="field">
+      <label for="staff-name">Your name</label>
+      <input id="staff-name" type="text" placeholder="e.g. Grace">
+    </div>
+    <div class="field">
+      <label for="script-url">Apps Script Web App URL</label>
+      <input id="script-url" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="hint">From Extensions &gt; Apps Script &gt; Deploy in your Stock Take sheet. Paste once per device.</div>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="save-settings-btn" style="flex:1">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var state = {
+    scriptUrl: localStorage.getItem("st_script_url") || "",
+    staffName: localStorage.getItem("st_staff_name") || "",
+    html5Qrcode: null,
+    scanning: false,
+    currentBarcode: null,
+    currentName: ""
+  };
+
+  var els = {
+    staffSub: document.getElementById("staff-sub"),
+    settingsBtn: document.getElementById("settings-btn"),
+    settingsModal: document.getElementById("settings-modal"),
+    staffNameInput: document.getElementById("staff-name"),
+    scriptUrlInput: document.getElementById("script-url"),
+    saveSettingsBtn: document.getElementById("save-settings-btn"),
+    startBtn: document.getElementById("start-btn"),
+    scanOverlay: document.getElementById("scan-overlay"),
+    resultCard: document.getElementById("result-card"),
+    rcBarcode: document.getElementById("rc-barcode"),
+    rcName: document.getElementById("rc-name"),
+    rcMeta: document.getElementById("rc-meta"),
+    qtyInput: document.getElementById("qty-input"),
+    qtyMinus: document.getElementById("qty-minus"),
+    qtyPlus: document.getElementById("qty-plus"),
+    notes: document.getElementById("notes"),
+    rescanBtn: document.getElementById("rescan-btn"),
+    logBtn: document.getElementById("log-btn"),
+    logList: document.getElementById("log-list"),
+    toast: document.getElementById("toast")
+  };
+
+  function refreshStaffSub() {
+    if (state.staffName && state.scriptUrl) {
+      els.staffSub.textContent = "Signed in as " + state.staffName;
+    } else {
+      els.staffSub.textContent = "Tap ⚙ to set up this device";
+    }
+  }
+
+  function openSettings() {
+    els.staffNameInput.value = state.staffName;
+    els.scriptUrlInput.value = state.scriptUrl;
+    els.settingsModal.classList.add("show");
+  }
+  function closeSettings() {
+    els.settingsModal.classList.remove("show");
+  }
+
+  els.settingsBtn.addEventListener("click", openSettings);
+  els.saveSettingsBtn.addEventListener("click", function () {
+    state.staffName = els.staffNameInput.value.trim();
+    state.scriptUrl = els.scriptUrlInput.value.trim();
+    localStorage.setItem("st_staff_name", state.staffName);
+    localStorage.setItem("st_script_url", state.scriptUrl);
+    refreshStaffSub();
+    closeSettings();
+    if (!state.scriptUrl) {
+      toast("Add the Apps Script URL before scanning.");
+    }
+  });
+
+  function toast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () {
+      els.toast.classList.remove("show");
+    }, 2200);
+  }
+
+  // ---- Scanning ----
+
+  var formats = [
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODABAR,
+    Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.QR_CODE
+  ];
+
+  function startScanning() {
+    if (!state.scriptUrl) {
+      openSettings();
+      return;
+    }
+    els.scanOverlay.style.display = "none";
+    document.getElementById("frame-hint").style.display = "block";
+    state.html5Qrcode = new Html5Qrcode("reader", { formatsToSupport: formats, verbose: false });
+    state.html5Qrcode
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 240, height: 160 } },
+        onScanSuccess,
+        function () {}
+      )
+      .then(function () {
+        state.scanning = true;
+      })
+      .catch(function (err) {
+        els.scanOverlay.style.display = "flex";
+        document.getElementById("frame-hint").style.display = "none";
+        toast("Camera error: " + err);
+      });
+  }
+
+  function pauseScanning() {
+    if (state.html5Qrcode && state.scanning) {
+      try { state.html5Qrcode.pause(true); } catch (e) {}
+    }
+  }
+  function resumeScanning() {
+    if (state.html5Qrcode && state.scanning) {
+      try { state.html5Qrcode.resume(); } catch (e) {}
+    }
+    els.resultCard.classList.remove("show");
+  }
+
+  function onScanSuccess(decodedText) {
+    if (!state.scanning) return;
+    pauseScanning();
+    state.currentBarcode = decodedText;
+    lookupProduct(decodedText);
+  }
+
+  function lookupProduct(barcode) {
+    els.rcBarcode.textContent = barcode;
+    els.rcName.textContent = "Looking up…";
+    els.rcName.className = "rc-name";
+    els.rcMeta.textContent = "";
+    els.qtyInput.value = 1;
+    els.notes.value = "";
+    els.resultCard.classList.add("show");
+
+    fetch(state.scriptUrl + "?barcode=" + encodeURIComponent(barcode))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.found) {
+          state.currentName = data.name || "";
+          els.rcName.textContent = data.name || "(no name)";
+          els.rcName.className = "rc-name";
+          var metaParts = [];
+          if (data.sku) metaParts.push("SKU " + data.sku);
+          if (data.price !== "" && data.price !== undefined && data.price !== null) metaParts.push("KSh " + data.price);
+          if (data.category) metaParts.push(data.category);
+          els.rcMeta.textContent = metaParts.join(" · ");
+        } else {
+          state.currentName = "";
+          els.rcName.textContent = "Unknown barcode";
+          els.rcName.className = "rc-name unknown";
+          els.rcMeta.textContent = "Not in the Products sheet yet — it'll still be logged.";
+        }
+      })
+      .catch(function () {
+        state.currentName = "";
+        els.rcName.textContent = "Lookup failed";
+        els.rcName.className = "rc-name unknown";
+        els.rcMeta.textContent = "Check your connection. You can still log this scan.";
+      });
+  }
+
+  els.qtyMinus.addEventListener("click", function () {
+    var v = Math.max(0, (parseInt(els.qtyInput.value, 10) || 0) - 1);
+    els.qtyInput.value = v;
+  });
+  els.qtyPlus.addEventListener("click", function () {
+    var v = (parseInt(els.qtyInput.value, 10) || 0) + 1;
+    els.qtyInput.value = v;
+  });
+
+  els.rescanBtn.addEventListener("click", function () {
+    resumeScanning();
+  });
+
+  els.logBtn.addEventListener("click", function () {
+    var barcode = state.currentBarcode;
+    var name = state.currentName;
+    var quantity = parseInt(els.qtyInput.value, 10) || 0;
+    var notes = els.notes.value.trim();
+
+    var itemEl = addLogItem(name || "(unnamed)", barcode, quantity, "pending");
+    resumeScanning();
+
+    fetch(state.scriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        barcode: barcode,
+        quantity: quantity,
+        countedBy: state.staffName,
+        notes: notes,
+        name: name
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          markLogItem(itemEl, "ok", data.name || name);
+          toast("Logged " + (data.name || barcode) + " × " + quantity);
+        } else {
+          markLogItem(itemEl, "error");
+          toast("Couldn't log that scan — try again.");
+        }
+      })
+      .catch(function () {
+        markLogItem(itemEl, "error");
+        toast("Network error — couldn't reach the sheet.");
+      });
+  });
+
+  function addLogItem(name, barcode, qty, status) {
+    var row = document.createElement("div");
+    row.className = "log-item " + status;
+    row.innerHTML =
+      '<div><div class="li-name">' + escapeHtml(name) + '</div>' +
+      '<div class="li-barcode">' + escapeHtml(barcode) + '</div></div>' +
+      '<div class="li-qty">×' + qty + '</div>';
+    els.logList.insertBefore(row, els.logList.firstChild);
+    return row;
+  }
+  function markLogItem(row, status, name) {
+    row.className = "log-item " + status;
+    if (name) {
+      row.querySelector(".li-name").textContent = name;
+    }
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  els.startBtn.addEventListener("click", startScanning);
+
+  refreshStaffSub();
+  if (!state.scriptUrl || !state.staffName) {
+    openSettings();
+  }
+})();
+</script>
+
+</body>
+</html>
